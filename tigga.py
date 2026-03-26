@@ -1,8 +1,5 @@
 import json
 import os
-import time
-from typing import Dict, Any
-
 class Tigga:
     CONFIG_FILE = "config.json"
 
@@ -50,6 +47,14 @@ class Tigga:
         self.status_msg = msg
         self.action_timer = duration
 
+    def tick_action_timer(self, delta: float = 1.0):
+        if self.action_timer <= 0:
+            return
+
+        self.action_timer = max(0, self.action_timer - delta)
+        if self.action_timer == 0:
+            self._update_state()
+
     def feed(self):
         if self.hunger <= 0:
             self.status_msg = "I'm already full! *purr*"
@@ -90,11 +95,8 @@ class Tigga:
             self.hunger = self._clamp(self.hunger + 1)
             self.happiness = self._clamp(self.happiness - 0.5)
             self.energy = self._clamp(self.energy - 0.5)
-        
-        if self.action_timer > 0:
-            self.action_timer -= 1
-            if self.action_timer == 0:
-                self._update_state()
+
+        self.tick_action_timer()
         self.save_state()
 
     def get_ascii(self, frame: int = 0) -> str:
@@ -110,35 +112,35 @@ ZZZ  /,`.-'`'    -.  ;-;;,_
 """
 
         if self.current_state == "eating":
-            bowl = "[bold yellow]\_( )_/[/bold yellow]" if frame % 2 == 0 else "[bold yellow]\___/[/bold yellow]"
+            bowl = r"[bold yellow]\_( )_/[/bold yellow]" if frame % 2 == 0 else r"[bold yellow]\___/[/bold yellow]"
             return rf"""
-    [bold black] /\_/\ [/bold black]
-    [bold black]( o o )[/bold black]
-    [bold black] > ^ < [/bold black]
-   [bold black] /     \ [/bold black]
-  [bold black] |       | [/bold black] {tail_pos}
-  [bold black]  \__{bowl}__/ [/bold black]
+    [bold white] /\_/\ [/bold white]
+    [bold white]( o o )[/bold white]
+    [bold white] > ^ < [/bold white]
+   [bold white] /     \ [/bold white]
+  [bold white] |       | [/bold white] {tail_pos}
+  [bold white]  \__{bowl}__/ [/bold white]
 """
 
         if self.current_state == "playing":
             jump = " " * (frame % 3)
             return rf"""
-{jump}    [bold black]  /\_/\ [/bold black]
-{jump}    [bold black] ( >ω< )[/bold black]  [bold red]*POP*[/bold red]
-{jump}    [bold black]  > ^ < [/bold black]
-{jump}    [bold black] /  |  \ [/bold black]
-{jump}    [bold black] |  |  | [/bold black] {tail_pos}
+{jump}    [bold white]  /\_/\ [/bold white]
+{jump}    [bold white] ( >ω< )[/bold white]  [bold red]*POP*[/bold red]
+{jump}    [bold white]  > ^ < [/bold white]
+{jump}    [bold white] /  |  \ [/bold white]
+{jump}    [bold white] |  |  | [/bold white] {tail_pos}
 """
 
         if self.current_state == "petting":
             hand = " (¯`·._.·" if frame % 2 == 0 else "  (¯`·._"
             return rf"""
    [bold white]{hand}[/bold white]
-    [bold black] /\_/\ [/bold black]
-    [bold black]( ^ ᵕ ^)[/bold black]
-    [bold black] > ^ < [/bold black]
-   [bold black] /     \ [/bold black]
-  [bold black] |       | [/bold black] {tail_pos}
+    [bold white] /\_/\ [/bold white]
+    [bold white]( ^ ᵕ ^)[/bold white]
+    [bold white] > ^ < [/bold white]
+   [bold white] /     \ [/bold white]
+  [bold white] |       | [/bold white] {tail_pos}
 """
 
         eye = "-" if blink else "^"
@@ -147,10 +149,10 @@ ZZZ  /,`.-'`'    -.  ;-;;,_
         elif self.current_state == "tired": eye = "."
 
         return rf"""
-    [bold black] /\_/\ [/bold black]
-    [bold black]( {eye} {eye} )[/bold black]
-    [bold black] > ^ < [/bold black]
-   [bold black] /     \ [/bold black]
-  [bold black] |       | [/bold black] {tail_pos}
-  [bold black]  \__ _ / [/bold black]
+    [bold white] /\_/\ [/bold white]
+    [bold white]( {eye} {eye} )[/bold white]
+    [bold white] > ^ < [/bold white]
+   [bold white] /     \ [/bold white]
+  [bold white] |       | [/bold white] {tail_pos}
+  [bold white]  \__ _ / [/bold white]
 """

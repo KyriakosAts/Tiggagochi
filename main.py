@@ -1,6 +1,4 @@
-import os
 import time
-import sys
 import traceback
 from rich.console import Console
 from rich.live import Live
@@ -13,12 +11,48 @@ try:
     WINDOWS = True
 except ImportError:
     WINDOWS = False
+    import select
+    import termios
+    import tty
 
-def get_key():
-    if WINDOWS:
-        if msvcrt.kbhit():
-            return msvcrt.getch().lower()
-    return None
+
+class InputReader:
+    def __init__(self):
+        self.stdin = None
+        self.fd = None
+        self.original_attrs = None
+
+    def __enter__(self):
+        if not WINDOWS:
+            import sys
+
+            self.stdin = sys.stdin
+            if self.stdin.isatty():
+                self.fd = self.stdin.fileno()
+                self.original_attrs = termios.tcgetattr(self.fd)
+                tty.setcbreak(self.fd)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if not WINDOWS and self.fd is not None and self.original_attrs is not None:
+            termios.tcsetattr(self.fd, termios.TCSADRAIN, self.original_attrs)
+
+    def get_key(self):
+        if WINDOWS:
+            if msvcrt.kbhit():
+                key = msvcrt.getch().lower()
+                return None if key in {b"\x00", b"\xe0"} else key
+            return None
+
+        if self.stdin is None or self.fd is None:
+            return None
+
+        ready, _, _ = select.select([self.stdin], [], [], 0)
+        if not ready:
+            return None
+
+        key = self.stdin.read(1)
+        return key.lower().encode() if key else None
 
 class TamagotchiGame:
     def __init__(self):
@@ -41,29 +75,28 @@ class TamagotchiGame:
         self.console.print("[bold magenta]Tigga is waking up...[/bold magenta]")
         time.sleep(1)
 
-        with Live(refresh_per_second=10, screen=True) as live:
+        with InputReader() as reader, Live(refresh_per_second=20, screen=True, auto_refresh=False, console=self.console) as live:
             while self.running:
                 self.frame_count += 1
-                key = get_key()
-                if key: self.handle_key(key)
-                
+                key = reader.get_key()
+                if key:
+                    self.handle_key(key)
+
                 # Slower time passage
-                if self.frame_count % 100 == 0: 
+                if self.frame_count % 100 == 0:
                     self.tigga.pass_time()
                 else:
-                    # We still need to decrement action timers every frame
-                    if self.tigga.action_timer > 0:
-                        self.tigga.action_timer -= 0.1 # Adjust for FPS
+                    self.tigga.tick_action_timer(0.1)
 
                 stats = {"hunger": self.tigga.hunger, "happiness": self.tigga.happiness, "energy": self.tigga.energy}
                 ascii_art = self.tigga.get_ascii(self.frame_count)
-                
+
                 main_layout = Layout()
                 main_layout.split_column(
                     Layout(self.display.render_tigga_ui(ascii_art, stats, self.tigga.status_msg), name="main", ratio=3),
                     Layout(self.display.render_controls(), name="controls", ratio=1)
                 )
-                live.update(main_layout)
+                live.update(main_layout, refresh=True)
                 time.sleep(0.05)
 
         self.console.clear()
